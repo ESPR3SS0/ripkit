@@ -23,16 +23,17 @@ This files roadmap:
         [] "ar x *.rlib file" ; Which may produce alot of files
 """
 
+import lief
+import magic
+import pefile
+from elftools.elf.elffile import ELFFile
 from enum import Enum
 from pathlib import Path
 import subprocess
 from typing import Optional
+from .crates_io import LocalCratesIO
 from .cargo_types import RustcTarget, CargoVariables, RustcStripFlags,\
-                        RustcOptimization, Cargodb
-REG_DIR = Cargodb.REG_DIR.value
-CLONED_DIR = Cargodb.CLONED_DIR.value
-EXTRACTED_TAR_DIR = Cargodb.EXTRACTED_TAR_DIR.value
-DATA_DIR = Cargodb.DATA_DIR.value
+                        RustcOptimization, Cargodb, FileType
 
 
 def gen_cross_build_cmd(proj_path: Path, target: RustcTarget, 
@@ -61,15 +62,15 @@ def gen_cross_build_cmd(proj_path: Path, target: RustcTarget,
 
 
 def build_crate(crate: str, 
-                opt_lvl: RustcOptimization = RustcOptimization.O1,
+                opt_lvl: RustcOptimization = RustcOptimization.O0,
                 target: RustcTarget = RustcTarget.X86_64_UNKNOWN_LINUX_GNU, 
                 strip: RustcStripFlags = RustcStripFlags.NOSTRIP)->None:
     ''' Build the repo '''
 
-    crate_path = CLONED_DIR.joinpath(crate)
+    crate_path = Path(LocalCratesIO.CRATES_DIR.value).resolve().joinpath(crate)
 
     cmd = gen_cross_build_cmd(crate_path,target,strip, opt_lvl)
-    #cmd = f"cd {CLONED_DIR} && " + cmd
+    #cmd = f"cd {Path(LocalCratesIO.CRATES_DIR.value).resolve()} && " + cmd
 
     # If the crate doesn't exist dont run
     if not crate_path.exists(): 
@@ -102,6 +103,138 @@ def build_crate_many_target(crate: str,
             if stop_on_fail: raise e
             failed_builds.append((crate,opt_lvl,target,strip))
     return (built_targets, failed_builds)
+
+def get_file_type(file_path: Path)->FileType:
+    ''' Detect the FileType of the file'''
+
+    # Use the absoltue path
+    file_path = file_path.resolve()
+
+    # Load the info for the file 
+    file_info = magic.from_file(file_path)
+
+    # Check for PE vs ELF
+    if 'PE' in file_info:
+        # Load the 
+        pe = pefile.PE(file_path)
+
+        # Check the header for the machine type
+        # - NOTICE: The below lines will give a type error about machine but its ok
+        if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE['IMAGE_FILE_MACHINE_I386']:
+            return FileType.PE_X86
+        elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE['IMAGE_FILE_MACHINE_AMD64']:
+            return FileType.PE_X86_64
+        else:
+            raise Exception(f"No filetype for {file_info}")
+
+    elif 'ELF' in file_info:
+        # Open the file and read the file header using ELFFile obj
+        with open(file_path, 'rb') as f:
+            elf_file = ELFFile(f)
+            header = elf_file.header
+
+            # 'e_machine' will indicate 32bit vs 64bit
+            if header['e_machine'].lower() == 'em_386':
+                return FileType.ELF_X86
+            elif header['e_machine'].lower() == 'em_x86_64':
+                return FileType.ELF_X86_64
+            else:
+                raise Exception(f"No filetype for {header['e_machine']}")
+    elif 'MACH':
+        #TODO: Handle MACH files 
+        raise Exception("TODO: Implement MACHO files")
+    else:
+        raise Exception("File type unknown")
+
+
+
+
+
+
+def is_executable(path: Path)->bool:
+    try:
+        if not path.is_file():
+            return False
+
+
+        # This will through an exeption if the file type is not 
+        # elf or pe or macho
+        f_type = get_file_type(path)
+
+        # TODO: So for some reason lief.parse() prints 
+        # to stdout when the file type is unknown AND 
+        # throws an error
+        bin = lief.parse(str(path.resolve()))#, redirect=True,
+                             #stdout=devnull)
+
+        if not hasattr(bin, "format"):
+            return False
+        elif bin.format in [lief.EXE_FORMATS.PE,
+                        lief.EXE_FORMATS.ELF]:
+            return True
+        return False
+    except Exception as e:
+        st = f"Unexpected error seeing if file {path} if an exe: {e}"
+        return False
+
+
+
+def is_object_file(path:Path)->bool:
+    # Get the file extension
+    file_extension = path.suffix.lower()
+
+    # Check if the file is a .o or .rlib file
+    if file_extension == ".o" or file_extension == ".rlib":
+        return True
+
+    return False
+
+class FileSuffixOfInterest(Enum):
+    O    = "o"
+    RLIB = "rlib"
+    AR   = "ar"
+
+def any_in(target_list: list[str], val:str):
+    return any(sub in val for sub in target_list)
+
+def find_built_files(target_path:Path,
+                        target_suffixes: list[str] = [".rlib"],
+                        exclude_suffixes: list[str] = [".rmeta"]):
+    """
+        This function was made to automate the finding of executable 
+        files build from cargo builds
+
+        This function will also help find .rlib files
+    """
+
+    target_subdirs = [x for x in [target_path.joinpath("debug"), 
+                      target_path.joinpath("release")] if x.exists()]
+
+    ret_files = []
+    for subdir in target_subdirs:
+        ret_files.extend([x for x in subdir.iterdir() if
+                (is_executable(x) or any_in(target_suffixes, x.suffix.lower()))
+                 and not any_in(exclude_suffixes, x.suffix.lower())])
+    return ret_files
+
+def get_target_productions(crate: str, target: RustcTarget, 
+                          target_suffixes: list[str] = [".rlib"],
+                          exclude_suffixes: list[str] = [".rmeta"]):
+    """
+    Grab a specific target produced files
+    """
+
+    # Target dir is the base target dir of the crate
+    #target_dir = CLONED_DIR.joinpath(crate).joinpath("target")
+
+    target_dir = Path(LocalCratesIO.CRATES_DIR.value).joinpath(crate).joinpath("target")
+
+    # If the specific target exists as a sub dir of the general target 
+    # dir, grab the files of interest from it 
+    if (dir:=target_dir.joinpath(str(target.value))).exists():
+        return find_built_files(dir,target_suffixes,exclude_suffixes)
+    return []
+
 
 
 

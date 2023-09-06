@@ -19,6 +19,12 @@ from .binary_analyzer import (
     POLARS_generate_minimal_unlabeled_features,
 )
 
+from .ripbin_deterministic_db import (
+    save_analysis,
+    RustFileBundle,
+    calculate_md5
+)
+
 from .ripbin_db import (
     get_registry,
     save_and_register_analysis,
