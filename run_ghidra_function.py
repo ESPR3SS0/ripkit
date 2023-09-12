@@ -34,7 +34,7 @@ def run_ghidra(bin_path: Path,
     cmd_str = [f"{analyzer.parent}/./{analyzer.name}", "/tmp", "tmp_proj",
                "-import", f"{bin_path}", "-scriptPath", f"{script_path}",
                "-postScript", f"{post_script.name}",
-               "-noanalysis"]
+               ]
     try:
         paths_to_remove = ["tmp_proj.rep", "tmp_proj.gpr"]
         paths_to_remove = [Path("/tmp") / Path(x) for x in paths_to_remove]
@@ -136,58 +136,59 @@ def ghidra_bench_functions(bin_path: Path,
 
 def open_and_read_log(log_path: Path = Path("GHIDRA_BENCH_RESULTS.json")):
 
-    res = []
+    # Read json data 
     with open(log_path,'r') as f:
-
-        # Read json data 
         data = json.load(f)
 
-
-    false_negatives = 0
-    true_positives = 0
+    # Totals 
+    total_strip_unique = 0
+    total_non_strip_unique = 0
     total_funcs = 0
-    for bin_name, bin_data in data.items():
-        if bin_data['strip_unique_funcs'] != 0:
-            # From initial testing the stripped binary never had any functions 
-            # that were not present in the nonstripped binary 
-            # ...
-            # No labels in strip binary is false positive is what this means
+    total_strip_non_unique  = 0
+    for _, bin_data in data.items():
+        # Unqiue functions in non-strip: Missed funcs 
+        #                           -or- False Negative
+        # Unqiue funciotns in strip: False Positive
 
-            # TODO This should be handled better, but right now the 
-            #      recall is 1
-            print(f"File {bin_name} had some unique funcs")
-        #num_missing_funcs = data['nonstrip_funcs'] - data['strip_funcs']
+        # Non-unique functions in strip: True Positive
 
-
-        # recall = TruePos / (TruePos + FalseNeg)
-
-        # false negatives is going to be strip_funcs - nonstrip_funcs, which is unique to nonstrip  b/c 
-        # precision is 1
-        false_negatives += bin_data['nonstrip_unique_funcs']
-
-        true_positives += bin_data['strip_funcs']
-
+        total_strip_unique += bin_data['strip_unique_funcs']
+        total_non_strip_unique += bin_data['nonstrip_unique_funcs']
+        total_strip_non_unique += bin_data['strip_funcs']
         total_funcs += bin_data['nonstrip_funcs']
 
+    false_negative = total_non_strip_unique
+    false_positive = total_strip_unique
 
-            #'nonstrip_funcs': len(res[0][0]),
-            #'nonstrip_unique_funcs': len(res[0][1]), - functions that were in nonstrip but not in strip
-            #'strip_funcs': len(res[1][0]),
-            #'strip_unique_funcs': len(res[1][1]),  - funcistion that the strip version had that nonstrip didnt have
- 
-    recall =  true_positives / (true_positives + false_negatives)
+    # Every thing that correctly labeled
+    true_positive = total_strip_non_unique
+
+
+    # Recall 
+    recall = true_positive / (true_positive + false_negative)
+
+    # Precision 
+    precision = true_positive / (true_positive + false_positive)
+
+    # F1
+    f1 = 2 * precision * recall / (precision+recall)
+
+
     print("Stats:")
     print("==================")
     print(f"Number of functions: {total_funcs}")
-    print(f"Funcs identified: {true_positives}")
+    print(f"Funcs correctly identified: {true_positive}")
+    print(f"False neg: {false_negative}")
+    print(f"False pos: {false_positive}")
+    print(f"strip unique: {total_strip_unique}")
+    print(f"nonstrip unique: {total_non_strip_unique}")
     print(f"Number of files: {len(data.keys())}")
-    print("Precision", 1)
+    print(f"Precision {precision}")
     print(f"Recall: {recall}")
-    f1 =  (2*1*recall)/(1+recall)
     print(f"F1: {f1}")
 
 
-    plt = create_dual_plots(1, recall, f1, true_positives, total_funcs,
+    plt = create_dual_plots(1, recall, f1, true_positive, total_funcs,
                             ['Precision', 'Recall', 'F1'],
                             ['Found','Not Found'])
 
@@ -225,12 +226,37 @@ def create_dual_plots(bar_value1, bar_value2, bar_value3, pie_found, pie_total, 
 
 
 if __name__ == "__main__":
-    open_and_read_log()
-    exit(1)
+    #open_and_read_log()
+    #exit(1)
+
+    rust_bins = []
+    for parent in Path("/home/ryan/.ripbin/ripped_bins/").iterdir():
+        info_file = parent / 'info.json'
+        info = {}
+        try:
+            with open(info_file, 'r') as f:
+                info = json.load(f)
+        except FileNotFoundError:
+            print(f"File not found: {info_file}")
+            continue
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error: {e}")
+            continue
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            continue
+
+        if info['optimization'] == '3':
+            npz_file = parent / "onehot_plus_func_labels.npz"
+            bin = [x for x in parent.iterdir() 
+                if ".npz" not in x.name and ".json" not in x.name][0]
+            rust_bins.append(bin)
 
     # All binaries are in there pkg dir and are exe
-    rust_bins = [x for x in Path("/home/ryan/.ripbin/ripped_bins/").rglob('*') if (x.name!="info.json" and "npz" not in x.name and x.is_file())]
-    #rust_bins = [x for x in rust_pkgs if is_executable(x)]
+    #rust_bins = [x for x in Path("/home/ryan/.ripbin/ripped_bins/").rglob('*') if (x.name!="info.json" and "npz" not in x.name and x.is_file())]
+
+    # Only run on the last 30 files
+    rust_bins = rust_bins[31:]
 
     total_results = []
     LOG_FILE = Path("GHIDRA_BENCH_RESULTS.json")
