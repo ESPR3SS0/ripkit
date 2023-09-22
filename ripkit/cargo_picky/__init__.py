@@ -15,7 +15,8 @@ from .crates_io import (
 )
 
 from .cargo_builder import (
-    build_crate_many_target,
+    gen_cargo_build_cmd,
+    #build_crate_many_target,
     gen_cross_build_cmd,
     build_crate,
     get_target_productions,

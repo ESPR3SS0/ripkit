@@ -44,7 +44,7 @@ from .analyzer_types import Compiler, RustcOptimization, ProgLang, FileType, GoO
 
 
 DB_PATH = Path("~/.ripbin/").expanduser().resolve()
-RIPBIN_REG = DB_PATH.joinpath('ripped_bins_registry.csv')
+#RIPBIN_REG = DB_PATH.joinpath('ripped_bins_registry.csv')
 RIPBIN_BINS = DB_PATH.joinpath('ripped_bins')
 
 @dataclass 
@@ -131,6 +131,7 @@ def save_analysis(bin_path: Path,
     if common_binary_hash != []:
         if not overwrite_existing:
             print("Existing analysis, without overwrite_existing")
+            print(f"Common binary hashes: {common_binary_hash}")
             raise Exception
     else:
         # Need to make a pkg_dir for this binary
@@ -167,4 +168,17 @@ def save_analysis(bin_path: Path,
     if save_bin:
         bin_file = pkg_path.joinpath(bin_path.name).resolve()
         shutil.copy(bin_path,bin_file)
+    return
+
+
+
+def get_ripped_bins(db_loc: Path = DB_PATH, opt_lvl = None, target = None):
+    '''
+    Get a list of the ripped binaries and their analysis
+    '''
+
+    # This is the directory for each file 
+    file_dirs = DB_PATH.iterdir() 
+
+
     return

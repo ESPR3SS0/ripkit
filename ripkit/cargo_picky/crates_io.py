@@ -140,10 +140,11 @@ def del_crate(crate: Union[list[str], str],
     return
 
 def clone_crate(crate: Union[list[str], str],
-                exist_ok=False, dir=CLONED_CRATES_DIR )-> None:
+                exist_ok=False, dir=CLONED_CRATES_DIR, debug=False)-> None:
     """
         Function to clone cargo crates
     """
+
 
     if isinstance(crate, str):
         crate = [crate]
@@ -152,10 +153,14 @@ def clone_crate(crate: Union[list[str], str],
         if (crate_path:=CLONED_CRATES_DIR.joinpath(single_crate)).exists() and not exist_ok:
             print(f"Crate {single_crate} alreadt exists at {crate_path}")
             continue
-
         cmd = f"cargo clone {single_crate} -- {dir.resolve()}/"
+
         try:
-            output = subprocess.check_output(cmd,shell=True)
+            if debug:
+                output = subprocess.check_output(cmd,shell=True)
+            else:
+                output = subprocess.check_output(cmd,shell=True,
+                                            stderr=subprocess.DEVNULL)
         except Exception as e:
             raise Exception(f"Crate pull error {e}")
 

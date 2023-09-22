@@ -17,18 +17,20 @@ from .binary_analyzer import (
     generate_minimal_labeled_features,
     generate_minimal_unlabeled_features,
     POLARS_generate_minimal_unlabeled_features,
+    get_functions,
 )
 
 from .ripbin_deterministic_db import (
     save_analysis,
     RustFileBundle,
-    calculate_md5
+    calculate_md5,
+    DB_PATH,
 )
 
-from .ripbin_db import (
-    get_registry,
-    save_and_register_analysis,
-)
+#from .ripbin_db import (
+#    get_registry,
+#    save_and_register_analysis,
+#)
 
 from .analyzer_types import (
     AnalysisType,
