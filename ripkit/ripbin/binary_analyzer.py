@@ -291,56 +291,13 @@ def get_elf_functions(path:Path, warn_if_stripped: bool = False)->list[FunctionI
     return functionInfo
 
 
-#@jit
-#def minimal_gen_data(path: Path):
-#    functions = get_functions(path)
-#
-#    func_start_addrs = {x.addr : (x.name, x.size) for x in functions}
-#
-#    func_end_addrs = {} 
-#    for start, info in func_start_addrs.items():
-#        # Ignoring functions that are of zero length
-#        if info[1] > 0:
-#            func_end_addrs[start+info[1]] = info[0]
-#
-#
-#    # Iterate over each byte in the .text section, 
-#    #asm_reprs = disassemble_text_section(path)
-#    #for line in asm_reprs:
-#
-#    parsed_bin = lief.parse(str(path.resolve()))
-#    text_section = parsed_bin.get_section(".text")
-#    #bytes_list = [f"{x:x}" for x in text_section.content.tolist()]
-#
-#    # Get the bytes in the .text section
-#    text_bytes = text_section.content
-#
-#    # Get the base address of the loaded binary
-#    base_address = parsed_bin.imagebase
-#
-#    for i, byte in enumerate(text_bytes):
-#        address = base_address + text_section.virtual_address + i
-#        #hexStrAddr = f"{address:x}"
-#        hexStrAddr = "{:x}".format(address)
-#        #hexStrByte = f"{byte:x}".format(byte)
-#        hexStrByte = "{:x}".format(byte)
-#        #bytes_list.append((address,byte))
-#        #print(f"Address: 0x{address:08X}, Byte: {byte}")
-#
-#        func_start = True if address in func_start_addrs.keys() else False
-#        func_end = True if address in func_end_addrs.keys() else False
-#        functionMiddle = True if not func_start and not func_end else False
-#        yield np.array([byte, address, int(func_start), int(func_end), int(functionMiddle)], dtype=np.int64)
-
-
-
 def objdump_cp(path: Path):
+    '''
+    Copy of object dump using lief 
+    '''
 
     # Get the generator for the disasm section
-    #res = disassemble_text_section(path)
     res = lief_disassemble_text_section(path)
-
-
 
 
     # NOTICE:
@@ -362,9 +319,13 @@ def objdump_cp(path: Path):
         print(f"0x{thing.address:x}: {bytes_string:<{max_len}} {thing.mnemonic} {thing.op_str}")
 
     print(get_file_type(path))
+    return
     
 
-def extract_debug_symbols(file_path):
+def extract_debug_symbols(file_path: Path):
+    '''
+    Helper function to extract the debug symbols
+    '''
     try:
         pe = pefile.PE(file_path)
         
@@ -417,6 +378,7 @@ def generate_minimal_labeled_features(path: Path, use_one_hot=True):
 
     func_end_addrs = {} 
     for start, info in func_start_addrs.items():
+        # NOTE: THIS IS IMPORTANT
         # Ignoring functions that are of zero length
         if info[1] > 0:
             func_end_addrs[start+info[1]] = info[0]

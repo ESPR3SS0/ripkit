@@ -66,10 +66,6 @@ class RustBundleMetaData:
     pkg_version: str
 
 
-
-
-
-
 def init()->None:
     '''
     Init the ripbin db
@@ -91,7 +87,6 @@ def init()->None:
     # Now I have
     # 
     #  ~/.ripbin
-    #       | ripped_bins_registry.csv
     #       | ripped_bins
     # 
     # :D 
@@ -99,14 +94,22 @@ def init()->None:
 
 
 def calculate_md5(file_path, buffer_size=8192):
+    '''
+    Get the hash of a file. This is helpful for storing binaries of the same 
+    names that were compiled with different flags / for different OSs 
+    '''
+
     md5_hash = hashlib.md5()
 
+    # Open, read, and take hash of file iterating over the buffers until
+    # there's no more
     with open(file_path, 'rb') as file:
         buffer = file.read(buffer_size)
         while buffer:
             md5_hash.update(buffer)
             buffer = file.read(buffer_size)
 
+    # Return the digest 
     return md5_hash.hexdigest()
 
 def save_analysis(bin_path: Path, 
@@ -130,8 +133,8 @@ def save_analysis(bin_path: Path,
 
     if common_binary_hash != []:
         if not overwrite_existing:
-            print("Existing analysis, without overwrite_existing")
-            print(f"Common binary hashes: {common_binary_hash}")
+            #print("Existing analysis, without overwrite_existing")
+            #print(f"Common binary hashes: {common_binary_hash}")
             raise Exception
     else:
         # Need to make a pkg_dir for this binary
@@ -168,6 +171,13 @@ def save_analysis(bin_path: Path,
     if save_bin:
         bin_file = pkg_path.joinpath(bin_path.name).resolve()
         shutil.copy(bin_path,bin_file)
+    return
+
+def export_lief_ground_truth(bin_path: Path, db_loc: Path = DB_PATH):
+
+    if not bin_path.exists():
+        raise Exception()
+
     return
 
 

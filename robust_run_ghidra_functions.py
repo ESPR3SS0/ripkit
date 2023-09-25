@@ -114,6 +114,11 @@ def run_ghidra(bin_path: Path,
 
 
 def parse_for_functions(inp):
+    '''
+    Parse the output from the ghidra headless analyzer to get the found 
+    function names and addresses
+    '''
+
     res = []
     in_list = False
     for line in inp.split("\n"):

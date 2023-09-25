@@ -1,4 +1,5 @@
 import typer
+import math
 import json
 import pandas as pd
 from typing_extensions import Annotated
@@ -24,12 +25,11 @@ from ripkit.cargo_picky import (
 )
 
 from ripkit.ripbin import (
+    get_functions,
     save_analysis,
     calculate_md5,
     RustFileBundle,
     generate_minimal_labeled_features,
-    generate_minimal_unlabeled_features,
-    POLARS_generate_minimal_unlabeled_features,
     DB_PATH,
     AnalysisType,
     FileType,
@@ -101,6 +101,31 @@ def build_analyze_crate(crate, opt, target, filetype,
         print(f"Exception {e} in crate {crate}")
 
     return 0
+
+@app.command()
+def list_functions(
+        binary: Annotated[str, typer.Argument()],
+        count: Annotated[bool, typer.Option()] = False,
+    ):
+    '''
+    Print the list of function that lief detects
+    '''
+
+    path = Path(binary)
+    functions = get_functions(path)
+    func_start_addrs = {x.addr : (x.name, x.size) for x in functions}
+
+    # Fancy line to get the longest addr and round it up to 2 bytes 
+    max_len = math.ceil(max(len(str(x)) for x in func_start_addrs.keys()) / 2) * 2
+
+    for addr, info in func_start_addrs.items():
+        #print(f"0x{str(int(hex(addr),16)).zfill(max_len)}: {info[0]}")
+        #print(f"{str(hex(addr)).zfill(max_len)}: {info[0]}")
+        print(f"{hex(addr)}: {info[0]}")
+    if count:
+        print(f"{len(func_start_addrs.keys())} functions")
+
+    return
     
 
 @app.command()
@@ -150,8 +175,8 @@ def show_cratesio(
 
 @app.command()
 def clone_many_exe(
-    number: 
-        Annotated[int,typer.Argument()]):
+    number: Annotated[int,typer.Argument()],
+    verbose: Annotated[bool,typer.Option()] = False):
     '''
     Clone many new executable rust crates.
     '''
@@ -177,7 +202,11 @@ def clone_many_exe(
             if is_remote_crate_exe(crate):
                 print(f"Cloning crate {crate}")
                 try:
-                    clone_crate(crate, debug=True)
+                    if verbose:
+                        clone_crate(crate, debug=True)
+                    else:
+                        clone_crate(crate)
+
                     cloned_count+=1
                     bar()
                 except Exception as e:
