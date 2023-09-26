@@ -42,6 +42,7 @@ from .ripbin_exceptions import RipbinRegistryError, RipbinAnalysisError, RipbinD
 
 from .analyzer_types import Compiler, RustcOptimization, ProgLang, FileType, GoOptimization, AnalysisType, Coptimization
 
+from .binary_analyzer import get_functions
 
 DB_PATH = Path("~/.ripbin/").expanduser().resolve()
 #RIPBIN_REG = DB_PATH.joinpath('ripped_bins_registry.csv')
@@ -173,12 +174,41 @@ def save_analysis(bin_path: Path,
         shutil.copy(bin_path,bin_file)
     return
 
+
+#TODO: The following 2 functions are sort of redunant because the npz file 
+#       already has all of these. The npz file would be more annoying to work 
+#       with. Might be nice to have a file of all the function addrs listed
 def export_lief_ground_truth(bin_path: Path, db_loc: Path = DB_PATH):
 
     if not bin_path.exists():
         raise Exception()
 
     return
+
+def save_lief_ground_truth(bin_path: Path):
+    '''
+    Save a file in the db of the lief ground truth
+    '''
+
+    if not bin_path.exists():
+        raise Exception()
+
+    # Get the pkg_path
+    pkg_path = bin_path.parent
+
+    # Make the exported file path
+    func_list_path = pkg_path / "lief_ground_truth.txt"
+
+    functions = get_functions(bin_path)
+
+    func_start_addrs = {x.addr : (x.name, x.size) for x in functions}
+
+    with open(func_list_path, 'w') as f:
+        for addr, info in func_start_addrs.items():
+            f.write(f"{hex(addr)}: {info[0]}\n")
+    return
+
+
 
 
 

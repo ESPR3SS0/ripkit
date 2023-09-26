@@ -25,6 +25,7 @@ from ripkit.cargo_picky import (
 )
 
 from ripkit.ripbin import (
+    save_lief_ground_truth,
     get_functions,
     save_analysis,
     calculate_md5,
@@ -101,6 +102,78 @@ def build_analyze_crate(crate, opt, target, filetype,
         print(f"Exception {e} in crate {crate}")
 
     return 0
+
+@app.command()
+def generate_lief_ground_truth(
+    opt_lvl: Annotated[str, typer.Argument(help="O0, O1, O2, O3, Oz, Os")],
+    bit: Annotated[str, typer.Argument(help="32 or 64")],
+    filetype: Annotated[str, typer.Argument(help="pe or elf")],
+    ):
+    '''
+    Generate lief ground turth for all binarys in db of opt and target
+    '''
+    if opt_lvl == "O0":
+        opt = RustcOptimization.O0
+    elif opt_lvl == "O1":
+        opt = RustcOptimization.O1
+    elif opt_lvl == "O2":
+        opt = RustcOptimization.O2
+    elif opt_lvl == "O3":
+        opt = RustcOptimization.O3
+    elif opt_lvl == "Oz":
+        opt = RustcOptimization.OZ
+    elif opt_lvl == "Os":
+        opt = RustcOptimization.OS
+    else:
+        return
+
+    if bit == "64":
+        if filetype == "elf":
+            target = RustcTarget.X86_64_UNKNOWN_LINUX_GNU
+        elif filetype == "pe":
+            target = RustcTarget.X86_64_PC_WINDOWS_GNU 
+        else:
+            return
+    elif bit == "32":
+        if filetype == "elf":
+            target = RustcTarget.I686_UNKNOWN_LINUX_GNU
+        elif filetype == "pe":
+            target = RustcTarget.I686_PC_WINDOWS_GNU 
+        else:
+            return
+    else:
+        return
+
+    # List of all binaries to generate ground truth for 
+    files = []
+    for parent in Path("/home/ryan/.ripbin/ripped_bins/").iterdir():
+        info_file = parent / 'info.json'
+        info = {}
+        try:
+            with open(info_file, 'r') as f:
+                info = json.load(f)
+        except FileNotFoundError:
+            print(f"File not found: {info_file}")
+            continue
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error: {e}")
+            continue
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            continue
+
+
+        if info['optimization'].upper() in opt.value.upper():
+            #npz_file = parent / "onehot_plus_func_labels.npz"
+
+            # Append the binary to files 
+            bin_path = parent / info['binary_name']
+            files.append(bin_path)
+
+    for file in alive_it(files):
+        save_lief_ground_truth(file)
+
+    return 
 
 @app.command()
 def list_functions(
@@ -185,7 +258,8 @@ def clone_many_exe(
     reg = crates_io_df()
 
     # List of crate current installed
-    installed_crates = [x.name for x in Path(LocalCratesIO.CRATES_DIR.value).iterdir() if x.is_dir()
+    installed_crates = [x.name for x in Path(LocalCratesIO.CRATES_DIR.value).iterdir() 
+        if x.is_dir()
     ]
 
     # List of crate names
@@ -211,8 +285,8 @@ def clone_many_exe(
                     bar()
                 except Exception as e:
                     print(e)
-                    bar(skipped=True)
-                bar(skipped=True)
+                    #bar(skipped=True)
+                #bar(skipped=True)
             # Break out of the loop if enough have cloned
             if cloned_count >= number:
                 break
@@ -578,7 +652,8 @@ def build_analyze_all(
             boring_crates.extend(json.load(f)['names'])
 
     for x in boring_crates:
-        installed_crates.remove(x)
+        if x in installed_crates:
+            installed_crates.remove(x)
 
 
     # Build and analyze each crate
